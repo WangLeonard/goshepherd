@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -50,6 +51,8 @@ func (s *shepherd) ServeHTTP(writer http.ResponseWriter, request *http.Request) 
 		rsp = s.add(query)
 	case "rmv":
 		rsp = s.rmv(query)
+	case "get":
+		rsp = s.get(query)
 	default:
 		rsp = "op not support"
 	}
@@ -69,7 +72,7 @@ func (s *shepherd) add(v url.Values) string {
 		return "port resource exhausted"
 	}
 
-	httpArgs := fmt.Sprintf("-http=127.0.0.1:%v", randPort)
+	httpArgs := fmt.Sprintf("-http=%s:%v", currIP, randPort)
 	switch v.Get("tool") {
 	case "0":
 		cmdInst, err = runCmd(pprofExePath, httpArgs, path1)
@@ -120,6 +123,28 @@ func (s *shepherd) rmv(v url.Values) string {
 	}
 	s.rmvSheep(port)
 	return "ok"
+}
+
+func (s *shepherd) get(v url.Values) string {
+	type SheepForHtml struct {
+		Name  string
+		Port  int
+		Path1 string
+		Path2 string
+	}
+
+	liveSheep := shepherdInst.dumpSheep()
+	allSheepHtml := make([]SheepForHtml, len(liveSheep))
+	for i, s := range liveSheep {
+		allSheepHtml[i] = SheepForHtml{
+			Name:  s.name,
+			Port:  s.port,
+			Path1: s.path1,
+			Path2: s.path2,
+		}
+	}
+	resp, _ := json.Marshal(&allSheepHtml)
+	return string(resp)
 }
 
 // addSheep should add new sheep with global unique port

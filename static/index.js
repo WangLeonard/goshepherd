@@ -1,4 +1,5 @@
 const $ = layui.jquery;
+init();
 
 layui.use('form', function () {
 	const form = layui.form;
@@ -32,7 +33,7 @@ layui.use('form', function () {
 		path2 = $("#path2").val() ==="dummy-placeholder" ? "" : $("#path2").val()
 		$.ajax({
 			type: "get",
-			url: "http://127.0.0.1:7777/api",
+			url: "http://"+getCurrUrl()+"/api",
 			data: {
 				op: "add",
 				tool: toolType,
@@ -64,7 +65,7 @@ layui.use('form', function () {
 
 				$("#tableBody").append('<tr>\n' +
 					'<td>' + prjName + '</td>\n' +
-					'<td><a style="color:#009688" href="http://127.0.0.1:'+port+'" target="_blank">http://127.0.0.1:'+port+'</a></td>\n' +
+					'<td><a style="color:#009688" href="http://'+ getCurrIP() + ':'+port+'" target="_blank">http://'+ getCurrIP() + ':'+port+'</a></td>\n' +
 					pathNode+
 					'<td>\n' +
 					' <button type="button" port='+port+' class="delBtn layui-btn layui-btn-sm layui-btn-danger">\n' +
@@ -89,7 +90,7 @@ layui.use('form', function () {
 	$("#tableBody").on("click",".delBtn", function () {
 		$.ajax({
 			type: "get",
-			url: "http://127.0.0.1:7777/api",
+			url: "http://"+ getCurrIP() + "/api",
 			data: {
 				op: "rmv",
 				port: $(this).attr("port"),
@@ -108,6 +109,57 @@ function alertCheckGoShepherd() {
 	})
 }
 
+function getCurrUrl(){
+	return window.location.host;
+}
 
+function getCurrIP(){
+	return getCurrUrl().split(":")[0];
+}
 
+function init(){
+	$.ajax({
+		type: "get",
+		url: "http://"+getCurrUrl()+"/api",
+		data: {
+			op: "get",
+		},
+		success: function (data) {
+			if (data === "") {
+				alertCheckGoShepherd();
+				return false;
+			}
+			console.log("init",data)
+			var jsonArray = eval(data)
+			jsonArray.forEach((item) => {
+				console.log(item);
+				path1 = item["Path1"]
+				path2 = item["Path2"]
+				prjName = item["Name"]
+				port = item["Port"]
 
+				pathNode = '<td><p>'+path1+'</p>'
+				if (path2 !== "") {
+					pathNode += '<p>'+path2+'</p>'
+				}
+				pathNode += '</td>'
+
+				$("#tableBody").append('<tr>\n' +
+					'<td>' + prjName + '</td>\n' +
+					'<td><a style="color:#009688" href="http://'+ getCurrIP() + ':'+port+'" target="_blank">http://'+ getCurrIP() + ':'+port+'</a></td>\n' +
+					pathNode+
+					'<td>\n' +
+					' <button type="button" port='+port+' class="delBtn layui-btn layui-btn-sm layui-btn-danger">\n' +
+					' <i class="layui-icon">&#xe640;</i>\n' +
+					' </button>\n' +
+					'</td>\n' +
+					'</tr>');
+			});
+			return;
+		},
+		error: function (data) {
+			alertCheckGoShepherd();
+			return false;
+		}
+	});
+}

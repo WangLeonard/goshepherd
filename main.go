@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -21,6 +22,12 @@ var pprofExePath, traceExePath string
 
 const Port = 7777
 
+var currIP string
+
+func init() {
+	currIP = getClientIp()
+}
+
 func main() {
 	welcome()
 	initGoToolPath()
@@ -32,8 +39,8 @@ func main() {
 	ch := make(chan int)
 	go func() {
 		select {
-		case <- ch:
-		case <- time.After(time.Millisecond*300):
+		case <-ch:
+		case <-time.After(time.Millisecond * 300):
 			startHomePage() // only start home page when everything is ready.
 		}
 	}()
@@ -59,25 +66,7 @@ func (h *indexHandle) ServeHTTP(writer http.ResponseWriter, request *http.Reques
 		panic(err)
 	}
 
-	type SheepForHtml struct {
-		Name  string
-		Port  int
-		Path1 string
-		Path2 string
-	}
-
-	liveSheep := shepherdInst.dumpSheep()
-	allSheepHtml := make([]SheepForHtml, len(liveSheep))
-	for i, s := range liveSheep {
-		allSheepHtml[i] = SheepForHtml{
-			Name:  s.name,
-			Port:  s.port,
-			Path1: s.path1,
-			Path2: s.path2,
-		}
-	}
-
-	tmpl.Execute(writer, allSheepHtml)
+	tmpl.Execute(writer, nil)
 }
 
 // initGoToolPath find the path for pprof and trace binaries.
@@ -111,7 +100,7 @@ func welcome() {
 }
 
 func startHomePage() {
-	homepage := fmt.Sprintf("http://127.0.0.1:%v", Port)
+	homepage := fmt.Sprintf("http://%s:%v", currIP, Port)
 	commands := map[string]string{
 		"windows": "explorer",
 		"darwin":  "open",
@@ -126,4 +115,21 @@ func startHomePage() {
 	fmt.Println("Opening home page: ", homepage)
 
 	exec.Command(explorer, homepage).Run()
+}
+
+func getClientIp() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "127.0.0.1"
+	}
+
+	for _, address := range addrs {
+		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String()
+			}
+		}
+	}
+
+	return "127.0.0.1"
 }
