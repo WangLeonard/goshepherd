@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"flag"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -12,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -20,12 +22,13 @@ import (
 var f embed.FS
 var pprofExePath, traceExePath string
 
-const Port = 7777
+var Port = flag.Int("p", 7777, "port")
 
 var currIP string
 
 func init() {
 	currIP = getClientIp()
+	flag.Parse()
 }
 
 func main() {
@@ -45,7 +48,7 @@ func main() {
 		}
 	}()
 
-	if err := http.ListenAndServe(fmt.Sprintf(":%v", Port), nil); err != nil {
+	if err := http.ListenAndServe(":"+strconv.Itoa(*Port), nil); err != nil {
 		ch <- 1
 		log.Fatal(err)
 	}
@@ -100,7 +103,7 @@ func welcome() {
 }
 
 func startHomePage() {
-	homepage := fmt.Sprintf("http://%s:%v", currIP, Port)
+	homepage := fmt.Sprintf("http://%s:%v", currIP, strconv.Itoa(*Port))
 	commands := map[string]string{
 		"windows": "explorer",
 		"darwin":  "open",
