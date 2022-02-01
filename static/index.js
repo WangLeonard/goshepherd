@@ -36,6 +36,7 @@ layui.use('form', function () {
 			data: {
 				op: "add",
 				tool: toolType,
+				name: prjName,
 				path1: path1,
 				path2: path2
 			},
