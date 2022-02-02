@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html/template"
 	"io/fs"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -39,6 +40,7 @@ func main() {
 	http.Handle("/", &indexHandle{})
 	http.Handle("/static/", http.FileServer(http.FS(f)))
 	http.Handle("/api", shepherdInst)
+	http.Handle("/upload/", &uploadHandler{})
 
 	ch := make(chan int)
 	go func() {
@@ -71,6 +73,56 @@ func (h *indexHandle) ServeHTTP(writer http.ResponseWriter, request *http.Reques
 	}
 
 	tmpl.Execute(writer, nil)
+}
+
+const uploadFilePath = "upload"
+
+type uploadHandler struct{}
+
+func (h *uploadHandler) ServeHTTP(writer http.ResponseWriter, r *http.Request) {
+	if _, err := os.Stat(uploadFilePath); err != nil {
+		err := os.MkdirAll(uploadFilePath, 0755)
+		if err != nil {
+			log.Println("Error creating directory", err)
+			return
+		}
+	}
+
+	r.ParseForm()                         //解析表单
+	rawFile, _, err := r.FormFile("file") //获取文件内容
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rawFile.Close()
+	fileHeader := r.MultipartForm.File["file"]
+	var proName string
+	if len(r.MultipartForm.Value["proName"]) > 0 {
+		proName = r.MultipartForm.Value["proName"][0]
+	}
+	for _, v := range fileHeader {
+		var newFileName strings.Builder
+		newFileName.WriteString(proName)
+		if newFileName.Len() != 0 {
+			newFileName.WriteString("_")
+		}
+		newFileName.WriteString(strconv.Itoa(int(time.Now().Unix())))
+		newFileName.WriteString("_")
+		newFileName.WriteString(v.Filename)
+		newfilePath, err := filepath.Abs(filepath.Join(uploadFilePath, newFileName.String()))
+		if err != nil {
+			log.Println("abs fielpath err", err)
+			writer.Write([]byte("{\"Path\":\"" + "null" + "\"}"))
+			return
+		}
+		fileContext, _ := ioutil.ReadAll(rawFile)
+		err = ioutil.WriteFile(newfilePath, fileContext, 0644)
+		if err != nil {
+			log.Println("WriteFile err:", err)
+		}
+		writer.Write([]byte("{\"Path\":\"" + newfilePath + "\"}"))
+		return
+	}
+	writer.Write([]byte("{\"Path\":\"" + "null" + "\"}"))
 }
 
 // initGoToolPath find the path for pprof and trace binaries.
