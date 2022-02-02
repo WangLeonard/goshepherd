@@ -3,10 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -15,6 +17,33 @@ import (
 )
 
 var shepherdInst = newShepherd()
+
+const configFilePath = "config.json"
+
+func recoverConfig() {
+	file, err := os.Open(configFilePath)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+	content, err := ioutil.ReadAll(file)
+	allSheepConfig := make([]SheepForConfig, 0, 10)
+	err = json.Unmarshal(content, &allSheepConfig)
+	for _, sheep := range allSheepConfig {
+		insts := strings.Split(sheep.Inst, " ")
+		cmdInst, err := runCmd(insts[0], insts[1:]...)
+		if err != "" {
+			log.Println("recoverConfig failed", err)
+		}
+		shepherdInst.addSheep(&Sheep{
+			inst:  cmdInst,
+			name:  sheep.Name,
+			path1: sheep.Path1,
+			path2: sheep.Path2,
+			port:  sheep.Port,
+		})
+	}
+}
 
 type (
 	shepherd struct {
@@ -84,11 +113,9 @@ func (s *shepherd) add(v url.Values) string {
 		fmt.Printf("invalid tool type, got: %v\n", v.Get("tool"))
 		return "invalid tool type"
 	}
-
 	if cmdInst == nil {
 		return err
 	}
-
 	s.addSheep(&Sheep{
 		inst:  cmdInst,
 		name:  v.Get("name"),
@@ -96,7 +123,6 @@ func (s *shepherd) add(v url.Values) string {
 		path2: path2,
 		port:  randPort,
 	})
-
 	return strconv.Itoa(randPort)
 }
 
@@ -125,40 +151,46 @@ func (s *shepherd) rmv(v url.Values) string {
 	return "ok"
 }
 
-func (s *shepherd) get(v url.Values) string {
-	type SheepForHtml struct {
-		Name  string
-		Port  int
-		Path1 string
-		Path2 string
-	}
+type SheepForConfig struct {
+	Name  string
+	Inst  string
+	Port  int
+	Path1 string
+	Path2 string
+}
 
+func (s *shepherd) get(v url.Values) string {
 	liveSheep := shepherdInst.dumpSheep()
-	allSheepHtml := make([]SheepForHtml, len(liveSheep))
+	allSheepConfig := make([]SheepForConfig, len(liveSheep))
 	for i, s := range liveSheep {
-		allSheepHtml[i] = SheepForHtml{
+		allSheepConfig[i] = SheepForConfig{
 			Name:  s.name,
 			Port:  s.port,
 			Path1: s.path1,
 			Path2: s.path2,
 		}
 	}
-	resp, _ := json.Marshal(&allSheepHtml)
+	resp, _ := json.Marshal(&allSheepConfig)
 	return string(resp)
 }
 
 // addSheep should add new sheep with global unique port
 func (s *shepherd) addSheep(sheep *Sheep) {
 	s.lock.Lock()
-	s.lock.Unlock()
+	defer func() {
+		s.update()
+		s.lock.Unlock()
+	}()
 	s.tail.next = sheep
 	s.tail = sheep
-
 }
 
 func (s *shepherd) rmvSheep(port int) {
 	s.lock.Lock()
-	defer s.lock.Unlock()
+	defer func() {
+		s.update()
+		s.lock.Unlock()
+	}()
 	prev := s.head
 	next := s.head.next
 	for next != nil {
@@ -186,6 +218,27 @@ func (s *shepherd) dumpSheep() []*Sheep {
 		next = next.next
 	}
 	return allSheep
+}
+
+func (s *shepherd) update() {
+	allSheep := make([]*Sheep, 0, 0)
+	next := s.head.next
+	for next != nil {
+		allSheep = append(allSheep, next)
+		next = next.next
+	}
+	allSheepConfig := make([]SheepForConfig, len(allSheep))
+	for i, s := range allSheep {
+		allSheepConfig[i] = SheepForConfig{
+			Name:  s.name,
+			Inst:  s.inst.String(),
+			Port:  s.port,
+			Path1: s.path1,
+			Path2: s.path2,
+		}
+	}
+	resp, _ := json.MarshalIndent(&allSheepConfig, "", "\t")
+	ioutil.WriteFile(configFilePath, resp, 0644)
 }
 
 func runCmd(cmd string, args ...string) (*exec.Cmd, string) {

@@ -29,6 +29,7 @@ var currIP string
 func init() {
 	currIP = getClientIp()
 	flag.Parse()
+	recoverConfig()
 }
 
 func main() {

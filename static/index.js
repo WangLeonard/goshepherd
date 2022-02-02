@@ -90,7 +90,7 @@ layui.use('form', function () {
 	$("#tableBody").on("click",".delBtn", function () {
 		$.ajax({
 			type: "get",
-			url: "http://"+ getCurrIP() + "/api",
+			url: "http://"+ getCurrUrl() + "/api",
 			data: {
 				op: "rmv",
 				port: $(this).attr("port"),
@@ -129,7 +129,6 @@ function init(){
 				alertCheckGoShepherd();
 				return false;
 			}
-			console.log("init",data)
 			var jsonArray = eval(data)
 			jsonArray.forEach((item) => {
 				console.log(item);
